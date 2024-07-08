@@ -1,29 +1,54 @@
 #include <SD.h>
 #include <Arduino.h>
+#include <Wire.h>
+#include "RTClib.h"
 
 // the setup function runs once when you press reset or power the board
 
 File sd_file;
 String file_name;
+RTC_DS3231 rtc;
 
-void setup() {
+void setup() 
+{
   pinMode(A0, INPUT);  //initalize pin as input
   pinMode(10, OUTPUT); // init pin as sd out
+
   Serial.begin(9600);
-  if (!SD.begin(10)) {
-  Serial.println("Initialization failed!");
+
+  if (!SD.begin(10)) 
+  {
+    Serial.println("Initialization failed!");
     return;
   }
+
+  // Check if the RTC is connected properly
+  if (!rtc.begin()) 
+  {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  // Check if the RTC lost power and if so, set the time
+  if (rtc.lostPower()) 
+  {
+    Serial.println("RTC lost power, let's set the time!");
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
+
   Serial.println("Initialization done.");
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   file_name = GET_TIME() + ".csv";
   sd_file = SD.open(file_name, FILE_WRITE);
   // if the file opened okay, write to it:
-  if (sd_file) {
+  if (sd_file) 
+  {
     Serial.println("Writing to file...");
     sd_file.close();
-  } else {
+  } 
+  else 
+  {
     Serial.println("Error opening file");
   }
 }
@@ -39,35 +64,46 @@ String time_collected = "";
 boolean first_value = true;
 
 // the loop function runs over and over again forever
-void loop() {
+void loop() 
+{
   repvalue = analogRead(A0); //get repvalue from Pin A0
   voltage = (((repvalue)*5)/1023)*2; // convert to voltage. 2 10KOHM resistors in series, good till 10V input so should be suitable for our solar panel
   power = voltage* current; // convert to power using measured voltage and current approximation 
   scaledpower = power / efficiency ; //convert the power to total avilable power based on the panel efficency
   irradiance = scaledpower / panelarea; // convert to irradiance based on panel area
-  time_collected = GET_TIME(); // dummy
-  WRITE_TO_SD(irradiance, time_collected);
+
+  String dateTimeString = getDateTimeString(); // Get the formatted date and time string
+
+  WRITE_TO_SD(irradiance, dateTimeString);
+  
   delay(1000);
 }
 
-// dummy
-String GET_TIME(){
-
-  unsigned long time_elapsed = millis();
-  return (String) time_elapsed;
-  
+// Function to get the current date and time string
+String getDateTimeString() 
+{
+  DateTime now = rtc.now();
+  String dateTimeString = String(now.year()) + "/" +
+                          String(now.month()) + "/" +
+                          String(now.day()) + " " +
+                          String(now.hour()) + ":" +
+                          String(now.minute()) + ":" +
+                          String(now.second());
+  return dateTimeString;
 }
 
-void WRITE_TO_SD(double irradiance, String time_collected){
+void WRITE_TO_SD(double irradiance, String time_collected)
+{
+  sd_file = SD.open(file_name, FILE_WRITE);
 
-    sd_file = SD.open(file_name, FILE_WRITE);
-  
-    if(sd_file){
-      sd_file.println((String) irradiance + "," + time_collected + ","); // readable
-      // sd_file.print((String) irradiance + "," + time_collected + ","); // practical
-      sd_file.close();
-    } else {
-      Serial.println("SD card error.");
-    }
-
+  if(sd_file)
+  {
+    sd_file.println((String) irradiance + "," + time_collected + ","); // readable
+    // sd_file.print((String) irradiance + "," + time_collected + ","); // practical
+    sd_file.close();
+  } 
+  else 
+  {
+    Serial.println("SD card error.");
+  }
 }
