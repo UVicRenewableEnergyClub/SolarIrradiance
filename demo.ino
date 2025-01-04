@@ -19,6 +19,5 @@ void loop() {
   scaledpower = power / efficiency ;
   irradiance = scaledpower / panelarea;
   Serial.println(voltage);
-  //Serial.println(irradiance);
   delay(1000);
 }
